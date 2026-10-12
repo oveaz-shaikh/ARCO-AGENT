@@ -1,0 +1,265 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCO Agent 2.0 | Campaign History</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 28px;
+      font-family: Arial, sans-serif;
+      background: #f4f6fa;
+      color: #172033;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    h1 { margin: 0 0 6px; font-size: 27px; }
+    p { color: #657089; }
+
+    button, input {
+      padding: 10px 14px;
+      border: 1px solid #d7ddeb;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+      background: #233b77;
+      color: white;
+      border: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    input {
+      background: white;
+      min-width: 240px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .card, .table-wrap {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px #18294b0b;
+    }
+
+    .metric-label { color: #657089; font-size: 13px; }
+    .metric-value { font-size: 25px; font-weight: 700; margin-top: 10px; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1050px; }
+
+    th, td {
+      text-align: left;
+      padding: 13px 12px;
+      border-bottom: 1px solid #edf0f5;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    th { background: #f8f9fc; color: #4c5870; }
+    .status { color: #176b45; font-weight: 600; }
+    .muted { color: #657089; }
+    #message { margin: 12px 0; }
+    a { color: #233b77; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <h1>Campaign History</h1>
+      <p>ARCO Agent 2.0 · Saved strategy recommendations</p>
+    </div>
+    <div class="toolbar">
+      <a href="index.html">Back to ARCO</a>
+      <button id="refreshButton">Refresh history</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <input
+      id="searchInput"
+      type="search"
+      placeholder="Search product, ID, or objective..."
+    >
+  </div>
+
+  <div id="message" class="muted">Loading campaigns...</div>
+
+  <section class="cards">
+    <div class="card">
+      <div class="metric-label">Saved campaigns</div>
+      <div class="metric-value" id="totalCount">0</div>
+    </div>
+    <div class="card">
+      <div class="metric-label">Average predicted net profit</div>
+      <div class="metric-value" id="averageProfit">₹0.00</div>
+    </div>
+    <div class="card">
+      <div class="metric-label">Average recommended discount</div>
+      <div class="metric-value" id="averageDiscount">0%</div>
+    </div>
+  </section>
+
+  <section class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Campaign ID</th>
+          <th>Created</th>
+          <th>Product</th>
+          <th>Objective</th>
+          <th>Discount</th>
+          <th>Duration</th>
+          <th>Predicted units</th>
+          <th>Revenue</th>
+          <th>Net profit</th>
+          <th>Incremental profit</th>
+          <th>Margin</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="campaignRows">
+        <tr><td colspan="12">Loading...</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000/api";
+    let allCampaigns = [];
+
+    function number(value) {
+      return Number(value ?? 0);
+    }
+
+    function money(value) {
+      return "₹" + number(value).toLocaleString("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function safe(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[char]);
+    }
+
+    async function loadCampaigns() {
+      const message = document.getElementById("message");
+      const tbody = document.getElementById("campaignRows");
+
+      message.textContent = "Loading campaign history...";
+
+      try {
+        const response = await fetch(`${API_BASE}/campaigns`);
+
+        if (!response.ok) {
+          throw new Error(`API returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        allCampaigns = data.campaigns || [];
+
+        renderCampaigns();
+        message.textContent = `Loaded ${allCampaigns.length} saved campaign(s).`;
+      } catch (error) {
+        message.textContent =
+          "Could not load history. Make sure the FastAPI backend is running. " +
+          error.message;
+
+        tbody.innerHTML =
+          '<tr><td colspan="12">Unable to load campaigns.</td></tr>';
+      }
+    }
+
+    function renderCampaigns() {
+      const search = document.getElementById("searchInput")
+        .value.trim().toLowerCase();
+
+      const campaigns = allCampaigns.filter(c => [
+        c.id, c.product_id, c.product, c.objective
+      ].some(value => String(value ?? "").toLowerCase().includes(search)));
+
+      document.getElementById("totalCount").textContent =
+        allCampaigns.length;
+
+      const average = (field) => allCampaigns.length
+        ? allCampaigns.reduce((sum, c) => sum + number(c[field]), 0)
+          / allCampaigns.length
+        : 0;
+
+      document.getElementById("averageProfit").textContent =
+        money(average("expected_net_profit"));
+
+      document.getElementById("averageDiscount").textContent =
+        average("discount_pct").toFixed(1) + "%";
+
+      const tbody = document.getElementById("campaignRows");
+
+      if (!campaigns.length) {
+        tbody.innerHTML =
+          '<tr><td colspan="12">No matching campaigns found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = campaigns.map(c => `
+        <tr>
+          <td>${safe(c.id)}</td>
+          <td>${safe(c.created_at ? new Date(c.created_at).toLocaleString() : "-")}</td>
+          <td>${safe(c.product || c.product_id || "-")}</td>
+          <td>${safe(c.objective || "-")}</td>
+          <td>${number(c.discount_pct).toFixed(1)}%</td>
+          <td>${safe(c.campaign_days ?? "-")} days</td>
+          <td>${number(c.expected_units).toFixed(2)}</td>
+          <td>${money(c.expected_revenue)}</td>
+          <td>${money(c.expected_net_profit)}</td>
+          <td>${money(c.incremental_profit)}</td>
+          <td>${number(c.margin_pct).toFixed(2)}%</td>
+          <td class="status">${safe(c.status || "Generated")}</td>
+        </tr>
+      `).join("");
+    }
+
+    document.getElementById("refreshButton")
+      .addEventListener("click", loadCampaigns);
+
+    document.getElementById("searchInput")
+      .addEventListener("input", renderCampaigns);
+
+    loadCampaigns();
+  </script>
+</body>
+</html>

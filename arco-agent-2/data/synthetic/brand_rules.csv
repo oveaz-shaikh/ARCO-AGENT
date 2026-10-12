@@ -1,0 +1,5 @@
+brand,max_discount_pct,min_margin_pct,min_stock_age_days,campaign_budget_limit
+Demo Brand A,30,25,60,5000
+Demo Brand B,25,30,45,4000
+Demo Brand C,35,20,30,6000
+Demo Brand D,20,25,60,3500

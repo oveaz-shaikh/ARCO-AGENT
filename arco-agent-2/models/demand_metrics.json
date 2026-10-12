@@ -1,0 +1,11 @@
+{
+  "train_rows": 136500,
+  "validation_rows": 15500,
+  "test_rows": 30500,
+  "baseline_test_mae": 1.4555,
+  "model_validation_mae": 0.5126,
+  "model_test_mae": 0.4962,
+  "model_test_rmse": 0.9817,
+  "mae_improvement_pct": 65.91,
+  "data_type": "synthetic"
+}
